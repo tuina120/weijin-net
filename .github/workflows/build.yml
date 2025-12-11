@@ -17,12 +17,11 @@ jobs:
     - name: Prepare build environment
       run: |
         sudo apt update
-        sudo apt install -y build-essential tar gzip ar
+        sudo apt install -y build-essential tar gzip binutils
 
     - name: Build IPK package (noarch)
       run: |
         echo "==== Start Building IPK ===="
-
         PKG_NAME="luci-app-weijin"
         VERSION="v${{ github.run_number }}"
         OUTPUT="output/${PKG_NAME}_${VERSION}_all.ipk"
@@ -51,7 +50,6 @@ EOF
         mkdir -p build_ipk/data/etc/config
         mkdir -p build_ipk/data/www
 
-        # From your package structure
         cp -r luci-app-weijin/luasrc build_ipk/data/usr/lib/lua/ || true
         cp -r luci-app-weijin/htdocs build_ipk/data/www/ || true
         cp -r luci-app-weijin/root/* build_ipk/data/ 2>/dev/null || true
