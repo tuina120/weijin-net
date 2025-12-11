@@ -34,25 +34,20 @@ jobs:
         mkdir -p build_ipk/data/www/luci-static/weijin
 
         # --- Write CONTROL file ---
-cat << 'EOF' > build_ipk/CONTROL/control
-Package: luci-app-weijin
-Version: VERSION_REPLACE
-Depends: libc, luci-base
-Section: luci
-Architecture: all
-Maintainer: Weijin Net
-Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）
-EOF
+        echo "Package: luci-app-weijin"        >  build_ipk/CONTROL/control
+        echo "Version: ${VERSION}"            >> build_ipk/CONTROL/control
+        echo "Depends: libc, luci-base"       >> build_ipk/CONTROL/control
+        echo "Section: luci"                  >> build_ipk/CONTROL/control
+        echo "Architecture: all"              >> build_ipk/CONTROL/control
+        echo "Maintainer: Weijin Net"         >> build_ipk/CONTROL/control
+        echo "Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）" >> build_ipk/CONTROL/control
 
-        # Replace VERSION placeholder
-        sed -i "s/VERSION_REPLACE/${VERSION}/g" build_ipk/CONTROL/control
-
-        # --- Copy files ---
+        # --- Copy plugin files ---
         cp -r luci-app-weijin/luasrc/* build_ipk/data/usr/lib/lua/luci/ || true
         cp -r luci-app-weijin/htdocs/luci-static/weijin/* build_ipk/data/www/luci-static/weijin/ || true
         cp -r luci-app-weijin/root/* build_ipk/data/ || true
 
-        # --- Create IPK sections ---
+        # --- Create IPK ---
         cd build_ipk
         tar -czf control.tar.gz CONTROL
         tar -czf data.tar.gz data
