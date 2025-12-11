@@ -7,7 +7,6 @@ on:
 
 jobs:
   build:
-    name: Build Weijin Net LuCI plugin
     runs-on: ubuntu-latest
 
     strategy:
@@ -18,57 +17,32 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Prepare environment
+    - name: Install dependencies
       run: |
         sudo apt update
         sudo apt install -y build-essential tar gzip binutils
 
-    - name: Set version
-      id: vars
-      run: |
-        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-          VERSION="${GITHUB_REF#refs/tags/}"
-        else
-          VERSION="dev-${GITHUB_RUN_NUMBER}"
-        fi
-        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-
     - name: Build IPK
       run: |
         PKG="luci-app-weijin"
-        VERSION="${{ steps.vars.outputs.version }}"
+        VERSION="v${GITHUB_RUN_NUMBER}"
         ARCH="${{ matrix.ARCH }}"
 
-        echo "Building for ${ARCH}, version ${VERSION}"
-
         mkdir -p build_ipk/CONTROL
-        mkdir -p build_ipk/data/usr/lib/lua/luci
-        mkdir -p build_ipk/data/usr/bin
-        mkdir -p build_ipk/data/etc/config
-        mkdir -p build_ipk/data/www/luci-static/weijin
+        mkdir -p build_ipk/data
 
-        # ---- 写入 CONTROL ----
-        cat <<'EOF' > build_ipk/CONTROL/control
-Package: APP_NAME
-Version: APP_VERSION
+        cat > build_ipk/CONTROL/control <<EOF
+Package: ${PKG}
+Version: ${VERSION}
 Depends: libc, luci-base
 Section: luci
-Architecture: APP_ARCH
+Architecture: ${ARCH}
 Maintainer: Weijin Net
-Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）
+Description: Weijin Net - Tailscale 智能出口选择插件
 EOF
 
-        # ---- 替换变量 ----
-        sed -i "s/APP_NAME/${PKG}/" build_ipk/CONTROL/control
-        sed -i "s/APP_VERSION/${VERSION}/" build_ipk/CONTROL/control
-        sed -i "s/APP_ARCH/${ARCH}/" build_ipk/CONTROL/control
+        cp -r luci-app-weijin/* build_ipk/data/
 
-        # ---- 复制插件文件 ----
-        cp -r luci-app-weijin/luasrc/* build_ipk/data/usr/lib/lua/luci/ || true
-        cp -r luci-app-weijin/htdocs/luci-static/weijin/* build_ipk/data/www/luci-static/weijin/ || true
-        cp -r luci-app-weijin/root/* build_ipk/data/ || true
-
-        # ---- 打包为 IPK ----
         cd build_ipk
         tar -czf control.tar.gz CONTROL
         tar -czf data.tar.gz data
