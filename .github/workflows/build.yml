@@ -34,7 +34,7 @@ jobs:
         VERSION="${{ steps.vars.outputs.version }}"
         ARCH="${{ matrix.ARCH }}"
 
-        echo "Building ${PKG} for ${ARCH}, version ${VERSION}"
+        echo "Building $PKG for $ARCH, version $VERSION"
 
         mkdir -p ipk/CONTROL
         mkdir -p ipk/data/usr/lib/lua/luci
@@ -42,28 +42,26 @@ jobs:
         mkdir -p ipk/data/etc/config
         mkdir -p ipk/data/www/luci-static/weijin
 
-        # ---- 写入 CONTROL ----
-        cat <<EOF > ipk/CONTROL/control
-Package: ${PKG}
-Version: ${VERSION}
-Depends: libc, luci-base
-Section: luci
-Architecture: ${ARCH}
-Maintainer: Weijin Net
-Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）
-EOF
+        # ---- 使用 echo 写 CONTROL 文件 ----
+        echo "Package: ${PKG}" > ipk/CONTROL/control
+        echo "Version: ${VERSION}" >> ipk/CONTROL/control
+        echo "Depends: libc, luci-base" >> ipk/CONTROL/control
+        echo "Section: luci" >> ipk/CONTROL/control
+        echo "Architecture: ${ARCH}" >> ipk/CONTROL/control
+        echo "Maintainer: Weijin Net" >> ipk/CONTROL/control
+        echo "Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）" >> ipk/CONTROL/control
 
-        # ---- 放置文件（必须放到 data 下正确路径）----
+        # ---- 复制插件文件 ----
         cp -r luci-app-weijin/luasrc/* ipk/data/usr/lib/lua/luci/ || true
         cp -r luci-app-weijin/htdocs/luci-static/weijin/* ipk/data/www/luci-static/weijin/ || true
         cp -r luci-app-weijin/root/* ipk/data/ || true
 
-        # ---- 正确打包 control.tar.gz ----
+        # ---- 打包 control.tar.gz ----
         cd ipk/CONTROL
         tar -czf ../control.tar.gz .
         cd -
 
-        # ---- 正确打包 data.tar.gz ----
+        # ---- 打包 data.tar.gz ----
         cd ipk/data
         tar -czf ../data.tar.gz .
         cd -
@@ -73,3 +71,9 @@ EOF
 
         mkdir -p output
         ar r output/${PKG}_${VERSION}_${ARCH}.ipk ipk/debian-binary ipk/control.tar.gz ipk/data.tar.gz
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: weijin-net-ipk-${{ matrix.ARCH }}
+        path: output/*.ipk
