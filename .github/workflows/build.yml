@@ -55,7 +55,8 @@ Depends: libc, luci-base
 Section: luci
 Architecture: ${ARCH}
 Maintainer: Weijin Net
-Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）EOF
+Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）
+EOF
 
         # ----------- 复制插件文件 -----------
         cp -r luci-app-weijin/luasrc/* build_ipk/data/usr/lib/lua/luci/ || true
