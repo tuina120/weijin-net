@@ -47,24 +47,28 @@ jobs:
         mkdir -p build_ipk/data/etc/config
         mkdir -p build_ipk/data/www/luci-static/weijin
 
-# ------------- ❗ EOF 必须顶格，不能缩进 ❗ -------------
-cat > build_ipk/CONTROL/control <<EOF
-Package: luci-app-weijin
-Version: ${VERSION}
+        # ---- 写入 CONTROL（安全方法，无 YAML 缩进问题） ----
+        cat <<'EOF' > build_ipk/CONTROL/control
+Package: APP_NAME
+Version: APP_VERSION
 Depends: libc, luci-base
 Section: luci
-Architecture: ${ARCH}
+Architecture: APP_ARCH
 Maintainer: Weijin Net
 Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）
 EOF
-# ---------------------------------------------------------
 
-        # Copy plugin files
+        # ---- 替换变量 ----
+        sed -i "s/APP_NAME/${PKG}/" build_ipk/CONTROL/control
+        sed -i "s/APP_VERSION/${VERSION}/" build_ipk/CONTROL/control
+        sed -i "s/APP_ARCH/${ARCH}/" build_ipk/CONTROL/control
+
+        # ---- 复制插件文件 ----
         cp -r luci-app-weijin/luasrc/* build_ipk/data/usr/lib/lua/luci/ || true
         cp -r luci-app-weijin/htdocs/luci-static/weijin/* build_ipk/data/www/luci-static/weijin/ || true
         cp -r luci-app-weijin/root/* build_ipk/data/ || true
 
-        # Build IPK
+        # ---- 打包为 IPK ----
         cd build_ipk
         tar -czf control.tar.gz CONTROL
         tar -czf data.tar.gz data
