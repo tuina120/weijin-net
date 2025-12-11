@@ -1,62 +1,54 @@
-name: Build & Release Weijin Net LuCI (Multi-Arch)
+name: Build luci-app-weijin (Weijin Net)
 
 on:
   push:
-    branches: [ "main" ]
-  # 手动触发
+    branches: ["main"]
   workflow_dispatch:
-  # 打 tag 时自动发 Release，例如 v14.4
-  release:
-    types: [created]
 
 jobs:
-  build_ipk:
-    name: Build Weijin Net LuCI plugin (multi-arch)
+  build:
+    name: Build Weijin Net LuCI plugin
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        arch: [aarch64_generic, x86_64]
+        ARCH: [aarch64_generic, x86_64]
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Prepare build environment
-        run: |
-          sudo apt update
-          sudo apt install -y build-essential tar gzip binutils
+    - name: Prepare environment
+      run: |
+        sudo apt update
+        sudo apt install -y build-essential tar gzip binutils
 
-      - name: Set version
-        id: vars
-        run: |
-          # 如果是 tag 构建，就用 tag 名字；否则用 run number
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/}"
-          else
-            VERSION="dev-${GITHUB_RUN_NUMBER}"
-          fi
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+    - name: Set version
+      id: vars
+      run: |
+        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          VERSION="${GITHUB_REF#refs/tags/}"
+        else
+          VERSION="dev-${GITHUB_RUN_NUMBER}"
+        fi
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Build IPK package
-        shell: bash
-        run: |
-          set -e
-          PKG_NAME="luci-app-weijin"
-          ARCH="${{ matrix.arch }}"
-          VERSION="${{ steps.vars.outputs.version }}"
-          echo "Building for ARCH=${ARCH}, VERSION=${VERSION}"
+    - name: Build IPK
+      run: |
+        PKG="luci-app-weijin"
+        VERSION="${{ steps.vars.outputs.version }}"
+        ARCH="${{ matrix.ARCH }}"
 
-          # 清理旧目录
-          rm -rf build_ipk
-          mkdir -p build_ipk/CONTROL
-          mkdir -p build_ipk/data/usr/lib/lua/luci
-          mkdir -p build_ipk/data/usr/bin
-          mkdir -p build_ipk/data/etc/config
-          mkdir -p build_ipk/data/www/luci-static/weijin
+        echo "Building for ${ARCH}, version ${VERSION}"
 
-          # 写 control 文件（关键字段：Package / Version / Depends / Architecture）
-          cat > build_ipk/CONTROL/control <<EOF
+        mkdir -p build_ipk/CONTROL
+        mkdir -p build_ipk/data/usr/lib/lua/luci
+        mkdir -p build_ipk/data/usr/bin
+        mkdir -p build_ipk/data/etc/config
+        mkdir -p build_ipk/data/www/luci-static/weijin
+
+        # ----------- CONTROL 文件（必须左对齐）-----------
+cat > build_ipk/CONTROL/control <<EOF
 Package: luci-app-weijin
 Version: ${VERSION}
 Depends: libc, luci-base
@@ -66,52 +58,22 @@ Maintainer: Weijin Net
 Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）
 EOF
 
-          # 拷贝 LuCI 源码到 data 区
-          cp -r luci-app-weijin/luasrc/* build_ipk/data/usr/lib/lua/luci/ || true
-          cp -r luci-app-weijin/htdocs/luci-static/weijin/* build_ipk/data/www/luci-static/weijin/ || true
-          cp -r luci-app-weijin/root/* build_ipk/data/ || true
+        # ----------- 复制插件文件 -----------
+        cp -r luci-app-weijin/luasrc/* build_ipk/data/usr/lib/lua/luci/ || true
+        cp -r luci-app-weijin/htdocs/luci-static/weijin/* build_ipk/data/www/luci-static/weijin/ || true
+        cp -r luci-app-weijin/root/* build_ipk/data/ || true
 
-          # 生成 IPK 三个核心文件
-          cd build_ipk
-          tar -czf control.tar.gz CONTROL
-          tar -czf data.tar.gz data
-          # debian-binary 建议没有换行，用 -n
-          echo -n "2.0" > debian-binary
+        # ----------- 打包 -----------
+        cd build_ipk
+        tar -czf control.tar.gz CONTROL
+        tar -czf data.tar.gz data
+        echo "2.0" > debian-binary
 
-          # 用 ar 打包成 .ipk
-          mkdir -p ../output/${ARCH}
-          OUTPUT="../output/${ARCH}/${PKG_NAME}_${VERSION}_${ARCH}.ipk"
-          ar r "${OUTPUT}" debian-binary control.tar.gz data.tar.gz
-          echo "Built IPK: ${OUTPUT}"
+        mkdir -p ../output
+        ar r ../output/${PKG}_${VERSION}_${ARCH}.ipk debian-binary control.tar.gz data.tar.gz
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: weijin-net-ipk-${{ matrix.arch }}
-          path: output/${{ matrix.arch }}/*.ipk
-
-  release:
-    name: Publish GitHub Release
-    needs: build_ipk
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      - name: Show downloaded files
-        run: |
-          echo "Artifacts content:"
-          ls -R artifacts
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/**/*
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: weijin-net-ipk-${{ matrix.ARCH }}
+        path: output/*.ipk
