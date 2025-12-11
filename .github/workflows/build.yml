@@ -20,6 +20,7 @@ jobs:
         sudo apt install -y build-essential tar gzip binutils
 
     - name: Build IPK package (noarch)
+      shell: bash
       run: |
         echo "==== Start Building IPK ===="
         PKG_NAME="luci-app-weijin"
@@ -32,10 +33,10 @@ jobs:
         mkdir -p build_ipk/data/etc/config
         mkdir -p build_ipk/data/www/luci-static/weijin
 
-        # CONTROL/control
-        cat > build_ipk/CONTROL/control <<EOF
+        # --- Write CONTROL file ---
+cat << 'EOF' > build_ipk/CONTROL/control
 Package: luci-app-weijin
-Version: ${VERSION}
+Version: VERSION_REPLACE
 Depends: libc, luci-base
 Section: luci
 Architecture: all
@@ -43,12 +44,15 @@ Maintainer: Weijin Net
 Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）
 EOF
 
-        # Copy files
+        # Replace VERSION placeholder
+        sed -i "s/VERSION_REPLACE/${VERSION}/g" build_ipk/CONTROL/control
+
+        # --- Copy files ---
         cp -r luci-app-weijin/luasrc/* build_ipk/data/usr/lib/lua/luci/ || true
         cp -r luci-app-weijin/htdocs/luci-static/weijin/* build_ipk/data/www/luci-static/weijin/ || true
         cp -r luci-app-weijin/root/* build_ipk/data/ || true
 
-        # Create pkgs
+        # --- Create IPK sections ---
         cd build_ipk
         tar -czf control.tar.gz CONTROL
         tar -czf data.tar.gz data
