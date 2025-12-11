@@ -1,4 +1,4 @@
-name: Build luci-app-weijin (Weijin Net)
+name: Build Weijin Net (Auto Version + Multi-Arch + Release)
 
 on:
   push:
@@ -7,8 +7,47 @@ on:
   workflow_dispatch:
 
 jobs:
+  bump_version:
+    name: Auto Bump Version
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Read current version
+        id: read
+        run: |
+          VERSION=$(grep "PKG_VERSION:=" luci-app-weijin/Makefile | cut -d= -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Bump version
+        id: bump
+        run: |
+          OLD_VERSION=$(grep "PKG_VERSION:=" luci-app-weijin/Makefile | cut -d= -f2)
+          MAJOR=$(echo $OLD_VERSION | cut -d. -f1)
+          MINOR=$(echo $OLD_VERSION | cut -d. -f2)
+          NEW_MINOR=$((MINOR + 1))
+          NEW_VERSION="${MAJOR}.${NEW_MINOR}"
+
+          echo "New version: $NEW_VERSION"
+
+          sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=${NEW_VERSION}/" luci-app-weijin/Makefile
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit bumped version
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add luci-app-weijin/Makefile
+          git commit -m "Auto bump version to ${{ steps.bump.outputs.new_version }}" || echo "No changes"
+          git push || echo "No push"
+
   build:
     name: Build for ${{ matrix.arch }}
+    needs: bump_version
     runs-on: ubuntu-latest
 
     strategy:
@@ -21,14 +60,8 @@ jobs:
           - mipsel_24kc
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v3
-
-      - name: Set Version
-        id: vars
-        run: |
-          VERSION=$(grep "PKG_VERSION:=" luci-app-weijin/Makefile | head -n1 | cut -d= -f2)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download OpenWrt SDK
         run: |
@@ -41,30 +74,29 @@ jobs:
           mkdir -p sdk/package/luci-app-weijin
           cp -r luci-app-weijin/* sdk/package/luci-app-weijin/
 
-      - name: Install dependencies
+      - name: Install deps
         run: |
           sudo apt update
-          sudo apt install -y build-essential libncurses5-dev gawk unzip python3-distutils
+          sudo apt install -y build-essential gawk libncurses5-dev unzip python3-distutils
 
-      - name: Build package
+      - name: Build IPK
         run: |
           cd sdk
           make defconfig
           make package/luci-app-weijin/compile V=s
 
-      - name: Upload artifact (IPK)
+      - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
           name: weijin-net-${{ matrix.arch }}
           path: sdk/bin/packages/**/luci-app-weijin*.ipk
 
   release:
-    name: Publish Release
+    name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
-
     steps:
-      - name: Download all artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
           path: artifacts
@@ -72,8 +104,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ github.run_number }}
-          name: Weijin Net v${{ github.run_number }}
+          tag_name: v${{ needs.bump_version.outputs.new_version }}
+          name: Weijin Net v${{ needs.bump_version.outputs.new_version }}
           draft: false
           files: artifacts/**/*
           generate_release_notes: true
