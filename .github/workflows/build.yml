@@ -27,11 +27,12 @@ jobs:
         OUTPUT="output/${PKG_NAME}_${VERSION}_all.ipk"
 
         mkdir -p build_ipk/CONTROL
-        mkdir -p build_ipk/data
+        mkdir -p build_ipk/data/usr/lib/lua/luci
+        mkdir -p build_ipk/data/usr/bin
+        mkdir -p build_ipk/data/etc/config
+        mkdir -p build_ipk/data/www/luci-static/weijin
 
-        # --------------------------
-        # 1. Write CONTROL/control
-        # --------------------------
+        # CONTROL/control
         cat > build_ipk/CONTROL/control <<EOF
 Package: luci-app-weijin
 Version: ${VERSION}
@@ -42,21 +43,12 @@ Maintainer: Weijin Net
 Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）
 EOF
 
-        # --------------------------
-        # 2. Copy plugin files
-        # --------------------------
-        mkdir -p build_ipk/data/usr/lib/lua
-        mkdir -p build_ipk/data/usr/bin
-        mkdir -p build_ipk/data/etc/config
-        mkdir -p build_ipk/data/www
+        # Copy files
+        cp -r luci-app-weijin/luasrc/* build_ipk/data/usr/lib/lua/luci/ || true
+        cp -r luci-app-weijin/htdocs/luci-static/weijin/* build_ipk/data/www/luci-static/weijin/ || true
+        cp -r luci-app-weijin/root/* build_ipk/data/ || true
 
-        cp -r luci-app-weijin/luasrc build_ipk/data/usr/lib/lua/ || true
-        cp -r luci-app-weijin/htdocs build_ipk/data/www/ || true
-        cp -r luci-app-weijin/root/* build_ipk/data/ 2>/dev/null || true
-
-        # --------------------------
-        # 3. Create tar.gz sections
-        # --------------------------
+        # Create pkgs
         cd build_ipk
         tar -czf control.tar.gz CONTROL
         tar -czf data.tar.gz data
