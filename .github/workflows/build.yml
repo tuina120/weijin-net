@@ -1,122 +1,76 @@
-name: Build Weijin Net (Auto Version + Multi-Arch + Release)
+name: Build luci-app-weijin (Weijin Net)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
-
-  bump_version:
-    name: Auto Bump Version
-    runs-on: ubuntu-latest
-    outputs:
-      new_version: ${{ steps.bump.outputs.new_version }}
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Bump version
-        id: bump
-        run: |
-          VERSION_FILE="luci-app-weijin/Makefile"
-          OLD_VERSION=$(grep 'PKG_VERSION:=' $VERSION_FILE | awk -F '= ' '{print $2}')
-          NEW_VERSION=$(echo "$OLD_VERSION + 0.1" | bc)
-          NEW_VERSION=$(printf "%.1f" $NEW_VERSION)
-
-          sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=${NEW_VERSION}/" $VERSION_FILE
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-
-      - name: Commit updated version
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git commit -am "Auto bump version to ${{ steps.bump.outputs.new_version }}"
-          git push
-
-
   build_ipk:
-    needs: bump_version
-    name: Build for ${{ matrix.arch }}
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        arch:
-          - x86_64
-          - aarch64_generic
-          - arm_cortex-a53
-          - mipsel_24kc
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Set SDK variables
-        id: sdk
-        run: |
-          case "${{ matrix.arch }}" in
-            x86_64)
-              TARGET="x86/64"
-              SDK_URL="https://downloads.openwrt.org/releases/23.05.2/targets/x86/64/openwrt-sdk-23.05.2-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz"
-              ;;
-            aarch64_generic)
-              TARGET="armvirt/64"
-              SDK_URL="https://downloads.openwrt.org/releases/23.05.2/targets/armvirt/64/openwrt-sdk-23.05.2-armvirt-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz"
-              ;;
-            arm_cortex-a53)
-              TARGET="mediatek/filogic"
-              SDK_URL="https://downloads.openwrt.org/releases/23.05.2/targets/mediatek/filogic/openwrt-sdk-23.05.2-mediatek-filogic_gcc-12.3.0_musl.Linux-x86_64.tar.xz"
-              ;;
-            mipsel_24kc)
-              TARGET="ramips/mt76x8"
-              SDK_URL="https://downloads.openwrt.org/releases/23.05.2/targets/ramips/mt76x8/openwrt-sdk-23.05.2-ramips-mt76x8_gcc-12.3.0_musl.Linux-x86_64.tar.xz"
-              ;;
-          esac
-
-          echo "TARGET=$TARGET" >> $GITHUB_ENV
-          echo "SDK_URL=$SDK_URL" >> $GITHUB_ENV
-
-      - name: Download OpenWrt SDK
-        run: |
-          wget $SDK_URL -O sdk.tar.xz
-          tar -xJf sdk.tar.xz
-          mv openwrt-sdk-* sdk
-
-      - name: Build luci-app-weijin
-        run: |
-          cd sdk
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
-
-          cp -r ../luci-app-weijin package/
-
-          make defconfig
-          make package/luci-app-weijin/compile V=s
-
-      - name: Upload IPK
-        uses: actions/upload-artifact@v4
-        with:
-          name: weijin-ipk-${{ matrix.arch }}
-          path: sdk/bin/packages/*/*/luci-app-weijin_*.ipk
-
-
-  release:
-    name: Publish GitHub Release
-    needs: build_ipk
+    name: Build Weijin Net LuCI plugin
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download all IPKs
-        uses: actions/download-artifact@v4
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ needs.bump_version.outputs.new_version }}
-          name: Weijin Net v${{ needs.bump_version.outputs.new_version }}
-          files: "**/*.ipk"
+    - name: Prepare build environment
+      run: |
+        sudo apt update
+        sudo apt install -y build-essential tar gzip ar
 
+    - name: Build IPK package (noarch)
+      run: |
+        echo "==== Start Building IPK ===="
+
+        PKG_NAME="luci-app-weijin"
+        VERSION="v${{ github.run_number }}"
+        OUTPUT="output/${PKG_NAME}_${VERSION}_all.ipk"
+
+        mkdir -p build_ipk/CONTROL
+        mkdir -p build_ipk/data
+
+        # --------------------------
+        # 1. Write CONTROL/control
+        # --------------------------
+        cat > build_ipk/CONTROL/control <<EOF
+Package: luci-app-weijin
+Version: ${VERSION}
+Depends: libc, luci-base
+Section: luci
+Architecture: all
+Maintainer: Weijin Net
+Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）
+EOF
+
+        # --------------------------
+        # 2. Copy plugin files
+        # --------------------------
+        mkdir -p build_ipk/data/usr/lib/lua
+        mkdir -p build_ipk/data/usr/bin
+        mkdir -p build_ipk/data/etc/config
+        mkdir -p build_ipk/data/www
+
+        # From your package structure
+        cp -r luci-app-weijin/luasrc build_ipk/data/usr/lib/lua/ || true
+        cp -r luci-app-weijin/htdocs build_ipk/data/www/ || true
+        cp -r luci-app-weijin/root/* build_ipk/data/ 2>/dev/null || true
+
+        # --------------------------
+        # 3. Create tar.gz sections
+        # --------------------------
+        cd build_ipk
+        tar -czf control.tar.gz CONTROL
+        tar -czf data.tar.gz data
+        echo "2.0" > debian-binary
+
+        mkdir -p ../output
+        ar r ../${OUTPUT} debian-binary control.tar.gz data.tar.gz
+
+        echo "Build Completed: ${OUTPUT}"
+
+    - name: Upload IPK
+      uses: actions/upload-artifact@v3
+      with:
+        name: weijin-net-ipk
+        path: output/*.ipk
