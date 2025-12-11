@@ -40,7 +40,6 @@ jobs:
         # Create directory structure
         mkdir -p build_ipk/CONTROL
         mkdir -p build_ipk/data
-
 cat <<EOF > build_ipk/CONTROL/control
 Package: ${PKG}
 Version: ${VERSION}
