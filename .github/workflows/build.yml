@@ -23,31 +23,35 @@ jobs:
       shell: bash
       run: |
         echo "==== Start Building IPK ===="
+
         PKG_NAME="luci-app-weijin"
         VERSION="v${{ github.run_number }}"
         OUTPUT="output/${PKG_NAME}_${VERSION}_all.ipk"
 
+        # Create directory structure
         mkdir -p build_ipk/CONTROL
         mkdir -p build_ipk/data/usr/lib/lua/luci
-        mkdir -p build_ipk/data/usr/bin
-        mkdir -p build_ipk/data/etc/config
         mkdir -p build_ipk/data/www/luci-static/weijin
+        mkdir -p build_ipk/data/etc/config
+        mkdir -p build_ipk/data/usr/bin
 
-        # --- Write CONTROL file ---
-        echo "Package: luci-app-weijin"        >  build_ipk/CONTROL/control
-        echo "Version: ${VERSION}"            >> build_ipk/CONTROL/control
-        echo "Depends: libc, luci-base"       >> build_ipk/CONTROL/control
-        echo "Section: luci"                  >> build_ipk/CONTROL/control
-        echo "Architecture: all"              >> build_ipk/CONTROL/control
-        echo "Maintainer: Weijin Net"         >> build_ipk/CONTROL/control
-        echo "Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）" >> build_ipk/CONTROL/control
+        # CONTROL file
+        {
+          echo "Package: luci-app-weijin"
+          echo "Version: ${VERSION}"
+          echo "Depends: libc, luci-base"
+          echo "Section: luci"
+          echo "Architecture: all"
+          echo "Maintainer: Weijin Net"
+          echo "Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）"
+        } > build_ipk/CONTROL/control
 
-        # --- Copy plugin files ---
+        # Copy plugin files
         cp -r luci-app-weijin/luasrc/* build_ipk/data/usr/lib/lua/luci/ || true
         cp -r luci-app-weijin/htdocs/luci-static/weijin/* build_ipk/data/www/luci-static/weijin/ || true
         cp -r luci-app-weijin/root/* build_ipk/data/ || true
 
-        # --- Create IPK ---
+        # Build IPK
         cd build_ipk
         tar -czf control.tar.gz CONTROL
         tar -czf data.tar.gz data
@@ -59,7 +63,7 @@ jobs:
         echo "Build Completed: ${OUTPUT}"
 
     - name: Upload IPK
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4   # <<< FIXED HERE
       with:
         name: weijin-net-ipk
         path: output/*.ipk
