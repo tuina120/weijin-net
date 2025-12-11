@@ -22,23 +22,31 @@ jobs:
         sudo apt update
         sudo apt install -y build-essential tar gzip binutils
 
+    - name: Set version
+      id: vars
+      run: |
+        VERSION="dev-${GITHUB_RUN_NUMBER}"
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
     - name: Build IPK
       run: |
         PKG="luci-app-weijin"
-        VERSION="v${GITHUB_RUN_NUMBER}"
+        VERSION="${{ steps.vars.outputs.version }}"
         ARCH="${{ matrix.ARCH }}"
+
+        echo "Building ${PKG} for ${ARCH}, version ${VERSION}"
 
         mkdir -p build_ipk/CONTROL
         mkdir -p build_ipk/data
 
-        cat > build_ipk/CONTROL/control <<EOF
+cat > build_ipk/CONTROL/control <<EOF
 Package: ${PKG}
 Version: ${VERSION}
 Depends: libc, luci-base
 Section: luci
 Architecture: ${ARCH}
 Maintainer: Weijin Net
-Description: Weijin Net - Tailscale 智能出口选择插件
+Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）
 EOF
 
         cp -r luci-app-weijin/* build_ipk/data/
