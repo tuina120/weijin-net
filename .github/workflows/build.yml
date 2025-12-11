@@ -2,65 +2,81 @@ name: Build luci-app-weijin (Weijin Net)
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   build:
+    name: Build for ${{ matrix.arch }}
     runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       matrix:
-        sdk:
-          - name: x86_64
-            target: x86/64
-            sdk_url: https://downloads.openwrt.org/releases/23.05.2/targets/x86/64/openwrt-sdk-23.05.2-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz
-          - name: aarch64
-            target: armvirt/64
-            sdk_url: https://downloads.openwrt.org/releases/23.05.2/targets/armvirt/64/openwrt-sdk-23.05.2-armvirt-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz
-          - name: armv7
-            target: armvirt/32
-            sdk_url: https://downloads.openwrt.org/releases/23.05.2/targets/armvirt/32/openwrt-sdk-23.05.2-armvirt-32_gcc-12.3.0_musl.Linux-x86_64.tar.xz
-          - name: mipsel_mt7621
-            target: ramips/mt7621
-            sdk_url: https://downloads.openwrt.org/releases/23.05.2/targets/ramips/mt7621/openwrt-sdk-23.05.2-ramips-mt7621_gcc-12.3.0_musl.Linux-x86_64.tar.xz
+        arch:
+          - x86_64
+          - aarch64_generic
+          - arm_cortex-a53
+          - mipsel_24kc
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Install build deps
+      - name: Set Version
+        id: vars
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
-            gettext git libncurses5-dev libncursesw5-dev libssl-dev python3 python3-distutils \
-            rsync unzip zlib1g-dev file wget
+          VERSION=$(grep "PKG_VERSION:=" luci-app-weijin/Makefile | head -n1 | cut -d= -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Download OpenWrt SDK (${{ matrix.sdk.name }})
+      - name: Download OpenWrt SDK
         run: |
-          wget -qO sdk.tar.xz "${{ matrix.sdk.sdk_url }}"
-          mkdir sdk
-          tar -xJf sdk.tar.xz -C sdk --strip-components=1
+          wget https://downloads.openwrt.org/releases/23.05.2/targets/${{ matrix.arch }}/generic/openwrt-sdk-23.05.2-${{ matrix.arch }}_gcc-12.3.0_musl.Linux-x86_64.tar.xz
+          tar -xf openwrt-sdk-*.tar.xz
+          mv openwrt-sdk-* sdk
 
-      - name: Copy luci-app-weijin into SDK
+      - name: Copy package into SDK
         run: |
-          cp -r luci-app-weijin sdk/package/
+          mkdir -p sdk/package/luci-app-weijin
+          cp -r luci-app-weijin/* sdk/package/luci-app-weijin/
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential libncurses5-dev gawk unzip python3-distutils
 
       - name: Build package
-        working-directory: sdk
         run: |
-          make package/luci-app-weijin/compile V=s || { echo "Build failed"; ls -R .; exit 1; }
+          cd sdk
+          make defconfig
+          make package/luci-app-weijin/compile V=s
 
-      - name: Collect IPK
-        run: |
-          mkdir -p artifacts/${{ matrix.sdk.name }}
-          find sdk/bin -name "luci-app-weijin_*.ipk" -exec cp {} artifacts/${{ matrix.sdk.name }}/ \;
-          ls -R artifacts
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload artifact (IPK)
+        uses: actions/upload-artifact@v3
         with:
-          name: luci-app-weijin-${{ matrix.sdk.name }}
-          path: artifacts/${{ matrix.sdk.name }}/
+          name: weijin-net-${{ matrix.arch }}
+          path: sdk/bin/packages/**/luci-app-weijin*.ipk
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Weijin Net v${{ github.run_number }}
+          draft: false
+          files: artifacts/**/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
