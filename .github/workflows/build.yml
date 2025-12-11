@@ -47,7 +47,7 @@ jobs:
         mkdir -p build_ipk/data/etc/config
         mkdir -p build_ipk/data/www/luci-static/weijin
 
-        # ---- 写入 CONTROL（安全方法，无 YAML 缩进问题） ----
+        # ---- 写入 CONTROL ----
         cat <<'EOF' > build_ipk/CONTROL/control
 Package: APP_NAME
 Version: APP_VERSION
