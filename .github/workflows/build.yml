@@ -14,7 +14,6 @@ jobs:
         ARCH: [aarch64_generic, x86_64]
 
     steps:
-
     - name: Checkout repository
       uses: actions/checkout@v4
 
@@ -30,6 +29,7 @@ jobs:
         echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
     - name: Build IPK
+      shell: bash
       run: |
         PKG="luci-app-weijin"
         VERSION="${{ steps.vars.outputs.version }}"
@@ -37,11 +37,11 @@ jobs:
 
         echo "=== Building ${PKG} for ${ARCH}, version ${VERSION} ==="
 
-        # Create directory structure
         mkdir -p build_ipk/CONTROL
         mkdir -p build_ipk/data
-cat <<EOF > build_ipk/CONTROL/control
-Package: ${PKG}
+
+cat > build_ipk/CONTROL/control <<EOF
+Package: luci-app-weijin
 Version: ${VERSION}
 Depends: libc, luci-base
 Section: luci
@@ -50,10 +50,8 @@ Maintainer: Weijin Net
 Description: Weijin Net - Tailscale 智能出口选择插件（自动测速 + 智能切换）
 EOF
 
-        # copy plugin files
         cp -r luci-app-weijin/* build_ipk/data/
 
-        # pack ipk
         cd build_ipk
         tar -czf control.tar.gz CONTROL
         tar -czf data.tar.gz data
